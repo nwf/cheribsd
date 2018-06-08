@@ -1070,7 +1070,6 @@ kern_kevent_generic(struct thread *td, struct g_kevent_args *uap,
 
 	return (error);
 }
-	struct kevent_native kev_n[KQ_NEVENTS];
 
 /*
  * Copy 'count' items into the destination list pointed to by uap->eventlist.

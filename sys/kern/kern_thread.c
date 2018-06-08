@@ -1183,7 +1183,7 @@ thread_single_end(struct proc *p, int mode)
 	 * to continue however as this is a bad place to stop.
 	 */
 	if (p->p_numthreads != remain_for_mode(mode) && !P_SHOULDSTOP(p)) {
-                FOREACH_THREAD_IN_PROC(p, td) {
+		FOREACH_THREAD_IN_PROC(p, td) {
 			thread_lock(td);
 			if (TD_IS_SUSPENDED(td)) {
 				wakeup_swapper |= thread_unsuspend_one(td, p,

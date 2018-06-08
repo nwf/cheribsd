@@ -52,7 +52,7 @@ struct kqueue {
 	int		kq_state;
 #define KQ_SEL		0x01
 #define KQ_SLEEP	0x02
-#define KQ_FLUXWAIT	0x04			/* waiting for a in flux kn */
+#define KQ_FLUXWAIT	0x04			/* waiting for an in flux kn */
 #define KQ_ASYNC	0x08
 #define KQ_CLOSING	0x10
 #define	KQ_TASKSCHED	0x20			/* task scheduled */

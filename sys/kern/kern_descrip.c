@@ -122,7 +122,6 @@ static void	filecaps_free_finish(u_long *ioctls);
  * Each process has:
  *
  * - An array of open file descriptors (fd_ofiles)
- * - An array of file flags (fd_ofileflags)
  * - A bitmap recording which descriptors are in use (fd_map)
  *
  * A process starts out with NDFILE descriptors.  The value of NDFILE has

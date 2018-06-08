@@ -236,7 +236,7 @@ handle_signal(struct sigaction *actp, int sig, siginfo_t *info, ucontext_t *ucp)
 
 	/*
 	 * We have already reset cancellation point flags, so if user's code
-	 * longjmp()s out of its signal handler, wish its jmpbuf was set
+	 * longjmp()s out of its signal handler, with its jmpbuf set
 	 * outside of a cancellation point, in most cases, this would be
 	 * true.  However, there is no way to save cancel_enable in jmpbuf,
 	 * so after setjmps() returns once more, the user code may need to

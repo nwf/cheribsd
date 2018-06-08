@@ -54,7 +54,6 @@ _pthread_resume_np(pthread_t thread)
 
 	/* Add a reference to the thread: */
 	if ((ret = _thr_find_thread(curthread, thread, /*include dead*/0)) == 0) {
-		/* Lock the threads scheduling queue: */
 		resume_common(thread);
 		THR_THREAD_UNLOCK(curthread, thread);
 	}
