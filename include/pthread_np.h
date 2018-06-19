@@ -35,6 +35,7 @@
 
 #include <sys/param.h>
 #include <sys/cpuset.h>
+#include <ucontext.h>
 
 /*
  * Non-POSIX type definitions:
@@ -67,6 +68,8 @@ void pthread_set_name_np(pthread_t, const char *);
 int pthread_setaffinity_np(pthread_t, size_t, const cpuset_t *);
 int pthread_single_np(void);
 void pthread_suspend_all_np(void);
+void pthread_suspended_iter_np(void (*)(pthread_t, ucontext_t *, void *rk),
+                               void *rk);
 int pthread_suspend_np(pthread_t);
 int pthread_switch_add_np(pthread_switch_routine_t);
 int pthread_switch_delete_np(pthread_switch_routine_t);

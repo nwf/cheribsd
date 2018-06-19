@@ -202,6 +202,7 @@
 #define		pthread_spin_trylock		_pthread_spin_trylock
 #define		pthread_spin_unlock		_pthread_spin_unlock
 #define		pthread_suspend_all_np		_pthread_suspend_all_np
+#define		pthread_suspended_iter_np	_pthread_suspended_iter_np
 #define		pthread_suspend_np		_pthread_suspend_np
 #define		pthread_switch_add_np		_pthread_switch_add_np
 #define		pthread_switch_delete_np	_pthread_switch_delete_np

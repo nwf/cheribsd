@@ -263,6 +263,7 @@ FBSDprivate_1.0 {
 	_pthread_spin_unlock;
 	_pthread_suspend_all_np;
 	_pthread_suspend_np;
+	_pthread_suspended_iter_np;
 	_pthread_switch_add_np;
 	_pthread_switch_delete_np;
 	_pthread_testcancel;
@@ -331,4 +332,5 @@ FBSD_1.4 {
 
 FBSD_1.5 {
 	 pthread_get_name_np;
+	 pthread_suspended_iter_np;
 };

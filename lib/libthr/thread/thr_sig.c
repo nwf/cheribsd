@@ -69,7 +69,7 @@ __libc_sigaction_slot(int signo)
 static void thr_sighandler(int, siginfo_t *, void *);
 static void handle_signal(struct sigaction *, int, siginfo_t *, ucontext_t *);
 static void check_deferred_signal(struct pthread *);
-static void check_suspend(struct pthread *);
+static void check_suspend(struct pthread *, ucontext_t *ucp);
 static void check_cancel(struct pthread *curthread, ucontext_t *ucp);
 
 int	_sigtimedwait(const sigset_t *set, siginfo_t *info,
@@ -142,7 +142,7 @@ sigcancel_handler(int sig __unused,
 	if (THR_IN_CRITICAL(curthread))
 		return;
 	err = errno;
-	check_suspend(curthread);
+	check_suspend(curthread, ucp);
 	check_cancel(curthread, ucp);
 	errno = err;
 }
@@ -270,7 +270,7 @@ _thr_ast(struct pthread *curthread)
 
 	if (!THR_IN_CRITICAL(curthread)) {
 		check_deferred_signal(curthread);
-		check_suspend(curthread);
+		check_suspend(curthread, NULL);
 		check_cancel(curthread, NULL);
 	}
 }
@@ -351,9 +351,10 @@ check_deferred_signal(struct pthread *curthread)
 }
 
 static void
-check_suspend(struct pthread *curthread)
+check_suspend(struct pthread *curthread, ucontext_t *ucp)
 {
 	uint32_t cycle;
+	int did_getcontext = 0;
 
 	if (__predict_true((curthread->flags &
 		(THR_FLAGS_NEED_SUSPEND | THR_FLAGS_SUSPENDED))
@@ -364,7 +365,7 @@ check_suspend(struct pthread *curthread)
 	if (curthread->force_exit)
 		return;
 
-	/* 
+	/*
 	 * Blocks SIGCANCEL which other threads must send.
 	 */
 	_thr_signal_block(curthread);
@@ -389,15 +390,42 @@ check_suspend(struct pthread *curthread)
 		 */
 		if (curthread->state == PS_DEAD)
 			break;
+
+		/* OK, definitely suspending.  Make context if needed */
+		if (ucp == NULL) {
+			/* Came in from userland; conjure up a context */
+			int uc_len = __getcontextx_size();
+			ucp = alloca(uc_len);
+			getcontext(ucp);
+			if (did_getcontext == 0) {
+				did_getcontext = 1;
+			} else {
+				return;
+			}
+		}
+		curthread->susp_uctx = ucp;
 		curthread->flags |= THR_FLAGS_SUSPENDED;
 		THR_UMUTEX_UNLOCK(curthread, &(curthread)->lock);
 		_thr_umtx_wait_uint(&curthread->cycle, cycle, NULL, 0);
 		THR_UMUTEX_LOCK(curthread, &(curthread)->lock);
 	}
+	curthread->flags &= ~(THR_FLAGS_SUSPENDED);
+	curthread->susp_uctx = NULL;
 	THR_UMUTEX_UNLOCK(curthread, &(curthread)->lock);
 	curthread->critical_count--;
 
 	_thr_signal_unblock(curthread);
+
+	/*
+	 * If we conjured up a context ourselves, rather than being provided
+	 * one, we also need to restore it, in case it has been modified.
+	 * In the case that ucp was provided by the kernel, this will be
+	 * done automagically by the implicit call to sigreturn.
+	 */
+
+	if (did_getcontext == 1) {
+		setcontext(ucp);
+	}
 }
 
 void
