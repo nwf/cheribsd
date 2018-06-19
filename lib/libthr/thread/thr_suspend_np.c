@@ -45,6 +45,7 @@ static int suspend_common(struct pthread *, struct pthread *,
 
 __weak_reference(_pthread_suspend_np, pthread_suspend_np);
 __weak_reference(_pthread_suspend_all_np, pthread_suspend_all_np);
+__weak_reference(_pthread_suspended_iter_np, pthread_suspended_iter_np);
 
 /* Suspend a thread: */
 int
@@ -151,6 +152,30 @@ restart:
 			}
 			THR_THREAD_UNLOCK(curthread, thread);
 		}
+	}
+	THREAD_LIST_UNLOCK(curthread);
+	_thr_suspend_all_unlock(curthread);
+	curthread->no_cancel = old_nocancel;
+	_thr_testcancel(curthread);
+}
+
+void
+_pthread_suspended_iter_np(
+	void (*cb)(pthread_t, ucontext_t *, void *),
+	void *rk)
+{
+	struct pthread *curthread = _get_curthread();
+	struct pthread *thread;
+	int old_nocancel;
+
+	old_nocancel = curthread->no_cancel;
+	curthread->no_cancel = 1;
+	_thr_suspend_all_lock(curthread);
+	THREAD_LIST_RDLOCK(curthread);
+	TAILQ_FOREACH(thread, &_thread_list, tle) {
+		if ((thread->flags & THR_FLAGS_SUSPENDED) == 0)
+			continue;
+		cb(thread, thread->susp_uctx, rk);
 	}
 	THREAD_LIST_UNLOCK(curthread);
 	_thr_suspend_all_unlock(curthread);

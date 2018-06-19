@@ -587,6 +587,17 @@ struct pthread {
 
 	/* pthread_set/get_name_np */
 	char			*name;
+
+	/*
+	 * When suspended, the ucontext_t as of our suspension.
+	 * This is either the context provided by the kernel if suspension was
+	 * entered via SIGCANCEL or one created via getcontext() if suspension
+	 * was entered due to _thr_ast()
+	 *
+	 * Set holding ->lock, valid if ->flags & THR_FLAGS_SUSPENDED.
+	 */
+	ucontext_t		*susp_uctx;
+
 };
 
 #define THR_SHOULD_GC(thrd) 						\
