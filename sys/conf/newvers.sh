@@ -200,14 +200,14 @@ if [ -z "${svnversion}" ] && [ -x /usr/bin/svnliteversion ] ; then
 	fi
 fi
 
-if findvcs .git; then
-	for dir in /usr/bin /usr/local/bin; do
-		if [ -x "${dir}/git" ] ; then
-			git_cmd="${dir}/git -c help.autocorrect=0 --git-dir=${VCSDIR}"
-			break
-		fi
-	done
-fi
+# XXX NWF # if findvcs .git; then
+# XXX NWF # 	for dir in /usr/bin /usr/local/bin; do
+# XXX NWF # 		if [ -x "${dir}/git" ] ; then
+# XXX NWF # 			git_cmd="${dir}/git -c help.autocorrect=0 --git-dir=${VCSDIR}"
+# XXX NWF # 			break
+# XXX NWF # 		fi
+# XXX NWF # 	done
+# XXX NWF # fi
 
 if findvcs .hg; then
 	for dir in /usr/bin /usr/local/bin; do
