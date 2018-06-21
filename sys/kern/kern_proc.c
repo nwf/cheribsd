@@ -94,6 +94,7 @@ __FBSDID("$FreeBSD$");
 #endif
 
 #ifdef COMPAT_CHERIABI
+#include <cheri/cheri.h>
 #include <compat/cheriabi/cheriabi.h>
 #include <compat/cheriabi/cheriabi_util.h>
 #endif
@@ -2745,6 +2746,37 @@ kern_proc_vmmap_out(struct proc *p, struct sbuf *sb, ssize_t maxlen,
 		if (entry->eflags & MAP_ENTRY_GROWS_DOWN)
 			kve->kve_flags |= KVME_FLAG_GROWS_DOWN;
 
+#if defined(COMPAT_CHERIABI)
+		/* XXX Oh ${DEITY[@]} this cannot be the right answer */
+		if (SV_CURPROC_FLAG(SV_CHERI)) {
+			void * __capability c = cheri_getdefault();
+			KASSERT(0 == cheri_getbase(c), ("default data cap nonzero base"));
+
+			c = cheri_setoffset(c, entry->start);
+			c = cheri_csetbounds(c, entry->end - entry->start);
+			/*
+			 * XXX
+			 *
+			 * Grant a bunch of permissions on this cap; we're
+			 * largely relying on the paging hardware to prevent
+			 * any badness here.
+			 *
+			 * We should probably at least reflect max_protection
+			 * into the permissions, tho', yeah?
+			 */
+			c = cheri_andperm(c,
+				CHERI_PERM_LOAD_CAP | CHERI_PERM_LOAD |
+				CHERI_PERM_STORE_CAP | CHERI_PERM_STORE |
+				CHERI_PERM_STORE_LOCAL_CAP );
+
+			if ((flags & KERN_VMMAP_MINT_CAPS) == 0)
+				c = cheri_cleartag(c);
+
+			kve->kve_cap = c;
+
+		}
+#endif
+
 		last_timestamp = map->timestamp;
 		vm_map_unlock_read(map);
 
@@ -2824,10 +2856,12 @@ kern_proc_vmmap_out(struct proc *p, struct sbuf *sb, ssize_t maxlen,
 			kve->kve_structsize =
 			    offsetof(struct kinfo_vmentry, kve_path) +
 			    pathlen + 1;
+
+			/* Ensure alignment at capability boundaries */
+			kve->kve_structsize = roundup(kve->kve_structsize,
+			    sizeof(intcap_t));
 		} else
 			kve->kve_structsize = sizeof(*kve);
-		kve->kve_structsize = roundup(kve->kve_structsize,
-		    sizeof(uint64_t));
 
 		/* Halt filling and truncate rather than exceeding maxlen */
 		if (maxlen != -1 && maxlen < kve->kve_structsize) {
@@ -2867,6 +2901,9 @@ sysctl_kern_proc_vmmap(SYSCTL_HANDLER_ARGS)
 	vm_offset_t base;
 	size_t n;
 
+	if ((((__cheri_addr vm_offset_t)req->oldptr) & 0xF) != 0)
+		return EINVAL;
+
 	name = (int *)arg1;
 
 	base = (__cheri_addr vm_offset_t)(req->newptr);
@@ -2883,7 +2920,9 @@ sysctl_kern_proc_vmmap(SYSCTL_HANDLER_ARGS)
 		return (error);
 	}
 	error = kern_proc_vmmap_out(p, &sb, -1, base, n,
-		KERN_VMMAP_PACK_KINFO);
+		KERN_VMMAP_PACK_KINFO
+		| ((p == req->td->td_proc) ? KERN_VMMAP_MINT_CAPS : 0) );
+
 	error2 = sbuf_finish(&sb);
 	sbuf_delete(&sb);
 	return (error != 0 ? error : error2);
@@ -3573,7 +3612,7 @@ static SYSCTL_NODE(_kern_proc, KERN_PROC_OVMMAP, ovmmap, CTLFLAG_RD |
 
 /* XXXNWF CTLFLAG_RW is a hack to sneak a parameter in! */
 static SYSCTL_NODE(_kern_proc, KERN_PROC_VMMAP, vmmap, CTLFLAG_RW |
-	CTLFLAG_MPSAFE, sysctl_kern_proc_vmmap,
+	CTLFLAG_PTROUT | CTLFLAG_MPSAFE, sysctl_kern_proc_vmmap,
 	"Process vm map entries");
 
 #if defined(STACK) || defined(DDB)

@@ -526,7 +526,8 @@ struct kinfo_vmentry {
 	uint64_t kve_vn_fsid;			/* dev_t of vnode location */
 	uint64_t kve_vn_rdev;			/* Device id if device. */
 	int      kve_max_protection;		/* Maximum protection bitmask */
-	int	 _kve_ispare[7];		/* Space for more stuff. */
+	char * __capability kve_cap;	/* XXX! INSECURE!! Capability to region! */
+	int	 _kve_ispare[5];		/* Space for more stuff. */
 	/* Truncated before copyout in sysctl */
 	char	 kve_path[PATH_MAX];		/* Path to VM obj, if any. */
 };
@@ -592,6 +593,7 @@ struct kinfo_sigtramp {
 
 /* Flags for kern_proc_vmmap_out. */
 #define	KERN_VMMAP_PACK_KINFO		0x00000001U
+#define	KERN_VMMAP_MINT_CAPS		0x00000002U
 struct sbuf;
 
 /*
