@@ -118,6 +118,8 @@ extern libcheri_syscall_check_t libcheri_syscall_checks[SYS_MAXSYSCALL];
  */
 extern vm_offset_t * __capability	libcheri_system_vtable;
 
+#include <sys/_domainset.h> // XXX compilation fix, but probably the wrong fix
+
 #define SYS_STUB(_num, _ret, _sys,					\
     _protoargs, _protoargs_chk, _protoargs_err,				\
     _callargs, _callargs_chk, _callargs_err, _localcheck)		\
