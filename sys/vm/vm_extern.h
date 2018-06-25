@@ -111,6 +111,7 @@ void vm_set_page_size(void);
 void vm_sync_icache(vm_map_t, vm_offset_t, vm_size_t);
 typedef int (*pmap_pinit_t)(struct pmap *pmap);
 struct vmspace *vmspace_alloc(vm_offset_t, vm_offset_t, pmap_pinit_t);
+void vmspace_fork_share(vm_map_entry_t);
 struct vmspace *vmspace_fork(struct vmspace *, vm_ooffset_t *);
 int vmspace_exec(struct proc *, vm_offset_t, vm_offset_t);
 int vmspace_unshare(struct proc *);

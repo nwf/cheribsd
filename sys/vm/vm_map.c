@@ -3677,6 +3677,78 @@ vmspace_map_entry_forked(const struct vmspace *vm1, struct vmspace *vm2,
 	}
 }
 
+void
+vmspace_fork_share(vm_map_entry_t old_entry)
+{
+	vm_object_t object;
+
+	/*
+	 * Clone the entry, creating the shared object if necessary.
+	 */
+	object = old_entry->object.vm_object;
+	if (object == NULL) {
+		object = vm_object_allocate(OBJT_DEFAULT,
+			atop(old_entry->end - old_entry->start));
+		old_entry->object.vm_object = object;
+		old_entry->offset = 0;
+		if (old_entry->cred != NULL) {
+			object->cred = old_entry->cred;
+			object->charge = old_entry->end -
+			    old_entry->start;
+			old_entry->cred = NULL;
+		}
+	}
+
+	/*
+	 * Add the reference before calling vm_object_shadow
+	 * to insure that a shadow object is created.
+	 */
+	vm_object_reference(object);
+	if (old_entry->eflags & MAP_ENTRY_NEEDS_COPY) {
+		vm_object_shadow(&old_entry->object.vm_object,
+		    &old_entry->offset,
+		    old_entry->end - old_entry->start);
+		old_entry->eflags &= ~MAP_ENTRY_NEEDS_COPY;
+		/* Transfer the second reference too. */
+		vm_object_reference(
+		    old_entry->object.vm_object);
+
+		/*
+		 * As in vm_map_simplify_entry(), the
+		 * vnode lock will not be acquired in
+		 * this call to vm_object_deallocate().
+		 */
+		vm_object_deallocate(object);
+		object = old_entry->object.vm_object;
+	}
+	VM_OBJECT_WLOCK(object);
+	vm_object_clear_flag(object, OBJ_ONEMAPPING);
+	if (old_entry->cred != NULL) {
+		KASSERT(object->cred == NULL, ("vmspace_fork both cred"));
+		object->cred = old_entry->cred;
+		object->charge = old_entry->end - old_entry->start;
+		old_entry->cred = NULL;
+	}
+
+	/*
+	 * Assert the correct state of the vnode
+	 * v_writecount while the object is locked, to
+	 * not relock it later for the assertion
+	 * correctness.
+	 */
+	if (old_entry->eflags & MAP_ENTRY_VN_WRITECNT &&
+	    object->type == OBJT_VNODE) {
+		KASSERT(((struct vnode *)object->handle)->
+		    v_writecount > 0,
+		    ("vmspace_fork: v_writecount %p", object));
+		KASSERT(object->un_pager.vnp.writemappings > 0,
+		    ("vmspace_fork: vnp.writecount %p",
+		    object));
+	}
+	VM_OBJECT_WUNLOCK(object);
+}
+
+
 /*
  * vmspace_fork:
  * Create a new process vmspace structure and vm_map
@@ -3694,7 +3766,6 @@ vmspace_fork(struct vmspace *vm1, vm_ooffset_t *fork_charge)
 	struct vmspace *vm2;
 	vm_map_t new_map, old_map;
 	vm_map_entry_t new_entry, old_entry;
-	vm_object_t object;
 	int locked;
 	vm_inherit_t inh;
 
@@ -3731,70 +3802,7 @@ vmspace_fork(struct vmspace *vm1, vm_ooffset_t *fork_charge)
 			break;
 
 		case VM_INHERIT_SHARE:
-			/*
-			 * Clone the entry, creating the shared object if necessary.
-			 */
-			object = old_entry->object.vm_object;
-			if (object == NULL) {
-				object = vm_object_allocate(OBJT_DEFAULT,
-					atop(old_entry->end - old_entry->start));
-				old_entry->object.vm_object = object;
-				old_entry->offset = 0;
-				if (old_entry->cred != NULL) {
-					object->cred = old_entry->cred;
-					object->charge = old_entry->end -
-					    old_entry->start;
-					old_entry->cred = NULL;
-				}
-			}
-
-			/*
-			 * Add the reference before calling vm_object_shadow
-			 * to insure that a shadow object is created.
-			 */
-			vm_object_reference(object);
-			if (old_entry->eflags & MAP_ENTRY_NEEDS_COPY) {
-				vm_object_shadow(&old_entry->object.vm_object,
-				    &old_entry->offset,
-				    old_entry->end - old_entry->start);
-				old_entry->eflags &= ~MAP_ENTRY_NEEDS_COPY;
-				/* Transfer the second reference too. */
-				vm_object_reference(
-				    old_entry->object.vm_object);
-
-				/*
-				 * As in vm_map_simplify_entry(), the
-				 * vnode lock will not be acquired in
-				 * this call to vm_object_deallocate().
-				 */
-				vm_object_deallocate(object);
-				object = old_entry->object.vm_object;
-			}
-			VM_OBJECT_WLOCK(object);
-			vm_object_clear_flag(object, OBJ_ONEMAPPING);
-			if (old_entry->cred != NULL) {
-				KASSERT(object->cred == NULL, ("vmspace_fork both cred"));
-				object->cred = old_entry->cred;
-				object->charge = old_entry->end - old_entry->start;
-				old_entry->cred = NULL;
-			}
-
-			/*
-			 * Assert the correct state of the vnode
-			 * v_writecount while the object is locked, to
-			 * not relock it later for the assertion
-			 * correctness.
-			 */
-			if (old_entry->eflags & MAP_ENTRY_VN_WRITECNT &&
-			    object->type == OBJT_VNODE) {
-				KASSERT(((struct vnode *)object->handle)->
-				    v_writecount > 0,
-				    ("vmspace_fork: v_writecount %p", object));
-				KASSERT(object->un_pager.vnp.writemappings > 0,
-				    ("vmspace_fork: vnp.writecount %p",
-				    object));
-			}
-			VM_OBJECT_WUNLOCK(object);
+			vmspace_fork_share(old_entry);
 
 			/*
 			 * Clone the entry, referencing the shared object.
@@ -3806,7 +3814,8 @@ vmspace_fork(struct vmspace *vm1, vm_ooffset_t *fork_charge)
 			new_entry->wiring_thread = NULL;
 			new_entry->wired_count = 0;
 			if (new_entry->eflags & MAP_ENTRY_VN_WRITECNT) {
-				vnode_pager_update_writecount(object,
+				vnode_pager_update_writecount(
+				    old_entry->object.vm_object,
 				    new_entry->start, new_entry->end);
 			}
 
