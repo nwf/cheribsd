@@ -485,6 +485,7 @@ DECLARE_CHERI_TEST(cheritest_vm_tag_tmpfile_private);
 DECLARE_CHERI_TEST(cheritest_vm_tag_tmpfile_private_prefault);
 DECLARE_CHERI_TEST(cheritest_vm_cow_read);
 DECLARE_CHERI_TEST(cheritest_vm_cow_write);
+DECLARE_CHERI_TEST(cheritest_vm_malias);
 const char	*xfail_need_writable_tmp(const char *name);
 const char	*xfail_need_writable_non_tmpfs_tmp(const char *name);
 

@@ -1028,6 +1028,10 @@ static const struct cheri_test cheri_tests[] = {
 	  .ct_func = cheritest_vm_swap,
 	  .ct_check_xfail = xfail_swap_required},
 
+	{ .ct_name = "cheritest_vm_malias",
+	  .ct_desc = "check malias works",
+	  .ct_func = cheritest_vm_malias, },
+
 #ifdef CHERI_LIBCHERI_TESTS
 #if 0
 	/*

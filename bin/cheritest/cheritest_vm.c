@@ -68,6 +68,8 @@
 #include <sysexits.h>
 #include <unistd.h>
 
+#include <sys/malias.h>
+
 #include "cheritest.h"
 
 /*
@@ -487,5 +489,32 @@ cheritest_vm_cow_write(const struct cheri_test *ctp __unused)
 	CHERITEST_CHECK_SYSCALL2(munmap(__DEVOLATILE(void *, cp_copy),
 	    getpagesize()), "munmap cp_copy");
 	CHERITEST_CHECK_SYSCALL(close(fd));
+	cheritest_success();
+}
+
+static const uint64_t magic = 0x0123456789ABCDEF;
+static const uint64_t more_magic = 0xFEDCBA9876543210;
+
+void
+cheritest_vm_malias(const struct cheri_test *ctp __unused)
+{
+	uint64_t *p1, *p2;
+
+	p1 = CHERITEST_CHECK_SYSCALL(mmap(NULL, getpagesize(), PROT_READ | PROT_WRITE, MAP_ANON, -1, 0));
+	CHERITEST_VERIFY(p1 != MAP_FAILED);
+	fprintf(stderr, "mmap 1 result %p\n", p1);
+
+	p2 = CHERITEST_CHECK_SYSCALL(mmap(NULL, getpagesize(), PROT_READ | PROT_WRITE, MAP_ANON, -1, 0));
+	CHERITEST_VERIFY(p2 != MAP_FAILED);
+	fprintf(stderr, "mmap 2 result %p\n", p2);
+
+	CHERITEST_CHECK_SYSCALL(malias(p1, p2, getpagesize(), 0));
+
+	*p1 = magic;
+	CHERITEST_VERIFY(*p2 == magic);
+
+	*p2 = more_magic;
+	CHERITEST_VERIFY(*p1 == more_magic);
+
 	cheritest_success();
 }
