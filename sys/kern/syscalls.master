@@ -1479,7 +1479,13 @@
 		    int flags
 		);
 	}
-259-271	AUE_NULL	UNIMPL	nosys
+259-260	AUE_NULL	UNIMPL	nosys
+261	AUE_NULL	STD	{
+		int malias(void *old, void *new,
+		    size_t len, int flags
+		);
+	}
+262-271	AUE_NULL	UNIMPL	nosys
 272	AUE_O_GETDENTS	COMPAT11 {
 		int getdents(
 		    int fd,

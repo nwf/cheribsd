@@ -464,3 +464,17 @@ cheriabi_munlock(struct thread *td, struct cheriabi_munlock_args *uap)
 
 	return (kern_munlock(td, (__cheri_addr uintptr_t)uap->addr, uap->len));
 }
+
+int
+cheriabi_malias(struct thread *td, struct cheriabi_malias_args *uap)
+{
+	if (cap_covers_pages(uap->old, uap->len) == 0)
+		return (EPERM);
+
+	if (cap_covers_pages(uap->new, uap->len) == 0)
+		return (EPERM);
+
+	return kern_malias(td, (__cheri_addr uintptr_t)uap->old,
+		(__cheri_addr uintptr_t)uap->new,
+		uap->len, uap->flags);
+}

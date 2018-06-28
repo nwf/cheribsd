@@ -4628,6 +4628,76 @@ vm_map_pmap_KBI(vm_map_t map)
 	return (map->pmap);
 }
 
+/*
+ *	vm_map_alias:
+ *
+ *	Constructs a duplicate entry for [old,old+size] at
+ *	[new,new+size].
+ */
+int
+vm_map_alias(vm_map_t map, vm_offset_t old, vm_offset_t new, size_t len)
+{
+	vm_map_entry_t entry; /* , new_entry; */
+	vm_offset_t entrysz;
+	vm_offset_t pos = 0;
+
+	if (new == old)
+		return (KERN_SUCCESS);
+
+	vm_map_lock(map);
+
+	/* Remove existing mappings at new location */
+	vm_map_delete(map, new, new+len);
+
+	/* Find entries at old location and duplicate them */
+	if (vm_map_lookup_entry(map, old, &entry)) {
+		vm_map_clip_start(map, entry, old);
+	} else
+		entry = entry->next;
+
+	while ((entry != &map->header) && (entry->start < old+len)) {
+		vm_map_clip_end(map, entry, old+len);
+		vmspace_fork_share(entry);
+
+		entrysz = entry->end - entry->start;
+
+		/* XXX We can probably hit this from userland */
+		KASSERT((entry->eflags & MAP_ENTRY_IS_SUB_MAP) == 0,
+			("Cannot alias submap."));
+
+#if 0
+		/* Manually create new entry */
+
+		new_entry = vm_map_entry_create(new_map);
+		new_entry->start = new+pos;
+		new_entry->end = new_entry->start + entrysz;
+		/* next_read, adj_free, max_free */
+		new_entry->object = entry->object;
+		new_entry->offset = entry->offset;
+		new_entry->eflags = entry->eflags;
+		new_entry->protection = entry->protection;
+		new_entry->max_protection = entry->max_protection;
+		new_entry->inheritance = VM_INHERIT_DEFAULT; /* entry->inheritance; */ /* XXX? */
+		/* read_ahead, wired_count, cred, wiring_thread */
+#endif
+
+		/*
+		 * On second thought, don't manually create.  Just use the
+		 * existing insertion logic.
+		 */
+
+		vm_map_insert(map, entry->object.vm_object, entry->offset,
+			new+pos, new+pos+entrysz, entry->protection,
+			entry->max_protection, 0);
+
+		entry = entry->next;
+		pos += entrysz;
+	}
+
+	vm_map_unlock(map);
+	return (KERN_SUCCESS);
+}
+
 #include "opt_ddb.h"
 #ifdef DDB
 #include <sys/kernel.h>

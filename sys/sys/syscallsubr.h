@@ -291,6 +291,8 @@ int	kern_mac_set_proc(struct thread *td, void * __capability mac_p);
 int	kern_mac_syscall(struct thread *td, const char * __capability policy,
 	    int call, void * __capability arg);
 int	kern_madvise(struct thread *td, uintptr_t addr, size_t len, int behav);
+int	kern_malias(struct thread *td, uintptr_t what, uintptr_t where,
+	    size_t size, int flags);
 int	kern_mincore(struct thread *td, uintptr_t addr, size_t len,
 	    char * __capability vec);
 int	kern_minherit(struct thread *td, vm_offset_t addr, vm_size_t size,

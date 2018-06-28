@@ -394,6 +394,7 @@ FBSD_1.5 {
 	kbounce;
 	kevent;
 	lstat;
+	malias;
 	mknod;
 	mknodat;
 	stat;

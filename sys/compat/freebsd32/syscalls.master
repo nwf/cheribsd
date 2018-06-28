@@ -495,7 +495,8 @@
 				    size_t len, int flags); }
 259	AUE_NULL	UNIMPL	nosys
 260	AUE_NULL	UNIMPL	nosys
-261	AUE_NULL	UNIMPL	nosys
+261	AUE_NULL	NOPROTO	{ int malias(void *src, void *dst, \
+				    size_t len, int flags); }
 262	AUE_NULL	UNIMPL	nosys
 263	AUE_NULL	UNIMPL	nosys
 264	AUE_NULL	UNIMPL	nosys

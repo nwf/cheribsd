@@ -1787,3 +1787,37 @@ vm_mmap_to_errno(int rv)
 //   "change_comment": ""
 // }
 // CHERI CHANGES END
+
+int
+kern_malias(struct thread *td, uintptr_t old, uintptr_t new, size_t len,
+		int flags)
+{
+	struct vmspace *vms = td->td_proc->p_vmspace;
+
+	if (flags != 0)
+		return EINVAL;
+
+	if (old == new)
+		return 0;
+
+	/* No wrap-around */
+	if ((old + len < old) || (new + len < new))
+		return EINVAL;
+
+	/* No overlap */
+	if ((old < new) && (old + len > new))
+		return EINVAL;
+	if ((new < old) && (new + len > old))
+		return EINVAL;
+
+	vm_map_alias(&vms->vm_map, old, new, len);
+
+	return 0;
+}
+
+int
+sys_malias(struct thread *td, struct malias_args *uap)
+{
+	return kern_malias(td, (uintptr_t)uap->old, (uintptr_t)uap->new,
+		uap->len, uap->flags);
+}

@@ -393,6 +393,7 @@ long vmspace_resident_count(struct vmspace *vmspace);
 #define VM_MAP_WIRE_WRITE	4	/* Validate writable. */
 
 #ifdef _KERNEL
+int vm_map_alias (vm_map_t, vm_offset_t, vm_offset_t, size_t);
 boolean_t vm_map_check_protection (vm_map_t, vm_offset_t, vm_offset_t, vm_prot_t);
 vm_map_t vm_map_create(pmap_t, vm_offset_t, vm_offset_t);
 int vm_map_delete(vm_map_t, vm_offset_t, vm_offset_t);
