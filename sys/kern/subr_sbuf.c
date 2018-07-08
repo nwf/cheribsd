@@ -79,6 +79,7 @@ static MALLOC_DEFINE(M_SBUF, "sbuf", "string buffers");
 #define	SBUF_NULINCLUDED(s)	((s)->s_flags & SBUF_INCLUDENUL)
 #define	SBUF_ISDRAINTOEOR(s)	((s)->s_flags & SBUF_DRAINTOEOR)
 #define	SBUF_DODRAINTOEOR(s)	(SBUF_ISSECTION(s) && SBUF_ISDRAINTOEOR(s))
+#define	SBUF_ISCOPYCAPS(s)	((s)->s_flags & SBUF_COPYCAPS)
 
 /*
  * Set / clear flags
@@ -176,6 +177,13 @@ sbuf_extend(struct sbuf *s, int addlen)
 	newbuf = SBMALLOC(newsize);
 	if (newbuf == NULL)
 		return (-1);
+/* XXX This seems wrong */
+#ifdef _KERNEL
+	if (SBUF_ISCOPYCAPS(s))
+		memcpy_c((__cheri_tocap char * __capability)newbuf,
+			 (__cheri_tocap const char * __capability)s->s_buf, s->s_size);
+	else
+#endif
 	memcpy(newbuf, s->s_buf, s->s_size);
 	if (SBUF_ISDYNAMIC(s))
 		SBFREE(s->s_buf);
@@ -427,6 +435,13 @@ sbuf_put_bytes(struct sbuf *s, const char *buf, size_t len)
 		n = SBUF_FREESPACE(s);
 		if (len < n)
 			n = len;
+/* XXX */
+#ifdef _KERNEL
+		if (SBUF_ISCOPYCAPS(s))
+			memcpy_c((__cheri_tocap char * __capability)&s->s_buf[s->s_len],
+				 (__cheri_tocap const char * __capability)buf, n);
+		else
+#endif
 		memcpy(&s->s_buf[s->s_len], buf, n);
 		s->s_len += n;
 		if (SBUF_ISSECTION(s))
