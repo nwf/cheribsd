@@ -74,7 +74,7 @@ static const char rcsid[] =
 
 static const char *conffile;
 
-static int	aflag, bflag, Bflag, dflag, eflag, hflag, iflag;
+static int	aflag, bflag, Bflag, dflag, Dflag, eflag, hflag, iflag;
 static int	Nflag, nflag, oflag, qflag, tflag, Tflag, Wflag, xflag;
 
 static int	oidfmt(int *, int, char *, u_int *);
@@ -165,6 +165,9 @@ main(int argc, char **argv)
 			break;
 		case 'd':
 			dflag = 1;
+			break;
+		case 'D':
+			Dflag = 1;
 			break;
 		case 'e':
 			eflag = 1;
@@ -424,14 +427,15 @@ parse(const char *string, int lineno)
 			exit(1);
 	}
 
-	if (newvalstr == NULL || dflag) {
+	if (newvalstr == NULL || dflag || Dflag) {
 		if ((kind & CTLTYPE) == CTLTYPE_NODE) {
-			if (dflag) {
+			if (dflag || Dflag) {
 				i = show_var(mib, len);
 				if (!i && !bflag)
 					putchar('\n');
 			}
-			sysctl_all(mib, len);
+			if (!Dflag)
+				sysctl_all(mib, len);
 		} else {
 			i = show_var(mib, len);
 			if (!i && !bflag)
