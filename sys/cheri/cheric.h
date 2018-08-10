@@ -66,6 +66,8 @@
 #define	cheri_ccheckperm(c, p)	__builtin_cheri_perms_check((c), (p))
 #define	cheri_cchecktype(c, t)	__builtin_cheri_type_check((c), (t))
 
+#define cheri_subset_test(h,l)  __builtin_cheri_subset_test(h,l) // test if l subset of h
+
 #define	cheri_getdefault()	__builtin_cheri_global_data_get()
 #define	cheri_getidc()		__builtin_mips_cheri_get_invoke_data_cap()
 #define	cheri_getkr1c()		__builtin_mips_cheri_get_kernel_cap1()
