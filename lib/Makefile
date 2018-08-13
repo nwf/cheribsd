@@ -143,6 +143,7 @@ SUBDIR.${MK_BLACKLIST}+=libblacklist
 SUBDIR.${MK_BLUETOOTH}+=libbluetooth libsdp
 SUBDIR.${MK_BSNMP}+=	libbsnmp
 
+SUBDIR.${MK_CHERI}+=	libcheri_shimalloc
 SUBDIR.${MK_CHERI}+=	libhelloworld
 SUBDIR.${MK_CHERI}+=	libsyscalls
 SUBDIR.${MK_CHERI}+=	libz-cheri
@@ -248,6 +249,7 @@ SUBDIR_PARALLEL=
 .endif
 
 .if ${MK_CHERI} != "no"
+SUBDIR_DEPEND_libcheri_shimalloc= libcheri_caprevoke
 # libc++experimental currently causes crashes
 SUBDIR:=	${SUBDIR:Nlibc++experimental}
 .endif
