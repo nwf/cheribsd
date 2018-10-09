@@ -36,6 +36,7 @@ __FBSDID("$FreeBSD$");
 #include <stdio.h>
 #include <string.h>
 #include <sysdecode.h>
+#include "malloc_utrace.h"
 #include "rtld_utrace.h"
 
 #ifdef __LP64__
@@ -157,6 +158,7 @@ print_utrace_rtld(FILE *fp, void *p)
 }
 
 struct utrace_malloc {
+	char sig[MALLOC_UTRACE_SIG_SZ];
 	void *p;
 	size_t s;
 	void *r;
@@ -164,6 +166,7 @@ struct utrace_malloc {
 
 #ifdef __LP64__
 struct utrace_malloc32 {
+	char sig[MALLOC_UTRACE_SIG_SZ];
 	uint32_t p;
 	uint32_t s;
 	uint32_t r;
@@ -171,12 +174,14 @@ struct utrace_malloc32 {
 
 #ifdef __CHERI_PURE_CAPABILITY__
 struct utrace_malloc64 {
+	char sig[MALLOC_UTRACE_SIG_SZ];
 	uint64_t p;
 	uint64_t s;
 	uint64_t r;
 };
 #else
 struct utrace_malloc_cheri {
+	char sig[MALLOC_UTRACE_SIG_SZ];
 	void * __capability p;
 	size_t s;
 	void * __capability r;
@@ -202,8 +207,9 @@ print_utrace_malloc(FILE *fp, void *p)
 int
 sysdecode_utrace(FILE *fp, void *p, size_t len)
 {
-	struct utrace_malloc um;
 	static const char rtld_utrace_sig[RTLD_UTRACE_SIG_SZ] = RTLD_UTRACE_SIG;
+	static const char malloc_utrace_sig[MALLOC_UTRACE_SIG_SZ] = MALLOC_UTRACE_SIG;
+
 
 	if (bcmp(p, rtld_utrace_sig, sizeof(rtld_utrace_sig)) == 0) {
 		/*
@@ -264,45 +270,54 @@ sysdecode_utrace(FILE *fp, void *p, size_t len)
 		}
 	}
 
-	if (len == sizeof(struct utrace_malloc)) {
-		print_utrace_malloc(fp, p);
-		return (1);
-	}
+	if (bcmp(p, malloc_utrace_sig, sizeof(malloc_utrace_sig)) == 0) {
+		/* Ditto for malloc */
+		struct utrace_malloc um;
 
+		switch(len) {
+		case sizeof(struct utrace_malloc):
+			print_utrace_malloc(fp, p);
+			return (1);
 #ifdef __LP64__
-	if (len == sizeof(struct utrace_malloc32)) {
-		struct utrace_malloc32 *pm = p;
-		memset(&um, 0, sizeof(um));
-		um.p = pm->p == (uint32_t)-1 ? (void *)(intptr_t)-1 :
-		    (void *)(uintptr_t)pm->p;
-		um.s = pm->s;
-		um.r = (void *)(uintptr_t)pm->r;
-		print_utrace_malloc(fp, &um);
-		return (1);
-	}
-
+		case sizeof(struct utrace_malloc32): {
+			struct utrace_malloc32 *pm = p;
+			memset(&um, 0, sizeof(um));
+			memcpy(um.sig, pm->sig, sizeof(um.sig));
+			um.p = pm->p == (uint32_t)-1 ? (void *)(intptr_t)-1 :
+			    (void *)(uintptr_t)pm->p;
+			um.s = pm->s;
+			um.r = (void *)(uintptr_t)pm->r;
+			print_utrace_malloc(fp, &um);
+			return (1);
+		}
 #ifdef __CHERI_PURE_CAPABILITY__
-	if (len == sizeof(struct utrace_malloc64)) {
-		struct utrace_malloc64 *m64 = p;
-		memset(&um, 0, sizeof(um));
-		um.p = (void *)(uintptr_t)m64->p;
-		um.s = m64->s;
-		um.r = (void *)(uintptr_t)m64->r;
-		print_utrace_malloc(fp, &um);
-		return (1);
-	}
+		case sizeof(struct utrace_malloc64): {
+			struct utrace_malloc64 *m64 = p;
+			memset(&um, 0, sizeof(um));
+			memcpy(um.sig, m64->sig, sizeof(um.sig));
+			um.p = (void *)(uintptr_t)m64->p;
+			um.s = m64->s;
+			um.r = (void *)(uintptr_t)m64->r;
+			print_utrace_malloc(fp, &um);
+			return (1);
+		}
 #else
-	if (len == sizeof(struct utrace_malloc_cheri)) {
-		struct utrace_malloc_cheri *mc = p;
-		memset(&um, 0, sizeof(um));
-		um.p = (void *)(__cheri_addr uintptr_t)mc->p;
-		um.s = mc->s;
-		um.r = (void *)(__cheri_addr uintptr_t)mc->r;
-		print_utrace_malloc(fp, &um);
-		return (1);
+		case sizeof(struct utrace_malloc_cheri): {
+			struct utrace_malloc_cheri *mc = p;
+			memset(&um, 0, sizeof(um));
+			memcpy(um.sig, mc->sig, sizeof(um.sig));
+			um.p = (void *)(__cheri_addr uintptr_t)mc->p;
+			um.s = mc->s;
+			um.r = (void *)(__cheri_addr uintptr_t)mc->r;
+			print_utrace_malloc(fp, &um);
+			return (1);
+		}
+#endif
+#endif
+		default:
+			return (0);
+		}
 	}
-#endif
-#endif
 
 	return (0);
 }
