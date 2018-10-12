@@ -162,6 +162,7 @@ struct utrace_malloc {
 	void *p;
 	size_t s;
 	void *r;
+	void *pc;
 };
 
 #ifdef __LP64__
@@ -170,6 +171,7 @@ struct utrace_malloc32 {
 	uint32_t p;
 	uint32_t s;
 	uint32_t r;
+	uint32_t pc;
 };
 
 #ifdef __CHERI_PURE_CAPABILITY__
@@ -178,6 +180,7 @@ struct utrace_malloc64 {
 	uint64_t p;
 	uint64_t s;
 	uint64_t r;
+	uint64_t pc;
 };
 #else
 struct utrace_malloc_cheri {
@@ -185,6 +188,7 @@ struct utrace_malloc_cheri {
 	void * __capability p;
 	size_t s;
 	void * __capability r;
+	void * __capability pc;
 };
 #endif
 #endif
@@ -195,13 +199,13 @@ print_utrace_malloc(FILE *fp, void *p)
 	struct utrace_malloc *ut = p;
 
 	if (ut->p == (void *)(intptr_t)(-1))
-		fprintf(fp, "malloc_init()");
+		fprintf(fp, "malloc_init() @ %p", ut->pc);
 	else if (ut->s == 0)
-		fprintf(fp, "free(%p)", ut->p);
+		fprintf(fp, "free(%p) @ %p", ut->p, ut->pc);
 	else if (ut->p == NULL)
-		fprintf(fp, "%p = malloc(%zu)", ut->r, ut->s);
+		fprintf(fp, "%p = malloc(%zu) @ %p", ut->r, ut->s, ut->pc);
 	else
-		fprintf(fp, "%p = realloc(%p, %zu)", ut->r, ut->p, ut->s);
+		fprintf(fp, "%p = realloc(%p, %zu) @ %p", ut->r, ut->p, ut->s, ut->pc);
 }
 
 int
@@ -287,6 +291,7 @@ sysdecode_utrace(FILE *fp, void *p, size_t len)
 			    (void *)(uintptr_t)pm->p;
 			um.s = pm->s;
 			um.r = (void *)(uintptr_t)pm->r;
+			um.pc = (void *)(uintptr_t)pm->pc;
 			print_utrace_malloc(fp, &um);
 			return (1);
 		}
@@ -298,6 +303,7 @@ sysdecode_utrace(FILE *fp, void *p, size_t len)
 			um.p = (void *)(uintptr_t)m64->p;
 			um.s = m64->s;
 			um.r = (void *)(uintptr_t)m64->r;
+			um.pc = (void *)(uintptr_t)m64->pc;
 			print_utrace_malloc(fp, &um);
 			return (1);
 		}
@@ -309,6 +315,7 @@ sysdecode_utrace(FILE *fp, void *p, size_t len)
 			um.p = (void *)(__cheri_addr uintptr_t)mc->p;
 			um.s = mc->s;
 			um.r = (void *)(__cheri_addr uintptr_t)mc->r;
+			um.pc = (void *)(__cheri_addr uintptr_t)mc->pc;
 			print_utrace_malloc(fp, &um);
 			return (1);
 		}

@@ -182,10 +182,11 @@ typedef struct {
 	void	*p;	/* Input pointer (as in realloc(p, s)). */
 	size_t	s;	/* Request size. */
 	void	*r;	/* Result pointer. */
+	void	*pc;	/* Caller program counter. */
 } malloc_utrace_t;
 
 #ifdef JEMALLOC_UTRACE
-#  define UTRACE(a, b, c) do {						\
+#  define UTRACE(a, b, c, d) do {						\
 	if (unlikely(opt_utrace)) {					\
 		int utrace_serrno = errno;				\
 		malloc_utrace_t ut;					\
@@ -193,12 +194,13 @@ typedef struct {
 		ut.p = (a);						\
 		ut.s = (b);						\
 		ut.r = (c);						\
+		ut.pc = (d);						\
 		utrace(&ut, sizeof(ut));				\
 		errno = utrace_serrno;					\
 	}								\
 } while (0)
 #else
-#  define UTRACE(a, b, c)
+#  define UTRACE(a, b, c, d)
 #endif
 
 #ifndef __CHERI_PURE_CAPABILITY__
@@ -1813,7 +1815,8 @@ compute_size_with_overflow(bool may_overflow, dynamic_opts_t *dopts,
 }
 
 JEMALLOC_ALWAYS_INLINE int
-imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
+imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
+		void *pc) {
 	/* Where the actual allocated memory will live. */
 	void *allocation = NULL;
 	/* Filled in by compute_size_with_overflow below. */
@@ -1951,7 +1954,7 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	}
 
 	if (sopts->slow) {
-		UTRACE(0, size, allocation);
+		UTRACE(0, size, allocation, pc);
 	}
 
 	/* Success! */
@@ -1966,7 +1969,7 @@ label_oom:
 	}
 
 	if (sopts->slow) {
-		UTRACE(NULL, size, NULL);
+		UTRACE(NULL, size, NULL, pc);
 	}
 
 	check_entry_exit_locking(tsd_tsdn(tsd));
@@ -1997,7 +2000,7 @@ label_invalid_alignment:
 	}
 
 	if (sopts->slow) {
-		UTRACE(NULL, size, NULL);
+		UTRACE(NULL, size, NULL, pc);
 	}
 
 	check_entry_exit_locking(tsd_tsdn(tsd));
@@ -2011,7 +2014,7 @@ label_invalid_alignment:
 
 /* Returns the errno-style error code of the allocation. */
 JEMALLOC_ALWAYS_INLINE int
-imalloc(static_opts_t *sopts, dynamic_opts_t *dopts) {
+imalloc(static_opts_t *sopts, dynamic_opts_t *dopts, void *pc) {
 	int ret;
 
 	if (unlikely(!malloc_initialized()) && unlikely(malloc_init())) {
@@ -2019,7 +2022,7 @@ imalloc(static_opts_t *sopts, dynamic_opts_t *dopts) {
 			malloc_write(sopts->oom_string);
 			abort();
 		}
-		UTRACE(NULL, dopts->num_items * dopts->item_size, NULL);
+		UTRACE(NULL, dopts->num_items * dopts->item_size, NULL, pc);
 		set_errno(ENOMEM);
 		*dopts->result = NULL;
 
@@ -2033,10 +2036,10 @@ imalloc(static_opts_t *sopts, dynamic_opts_t *dopts) {
 		/* Fast and common path. */
 		tsd_assert_fast(tsd);
 		sopts->slow = false;
-		ret = imalloc_body(sopts, dopts, tsd);
+		ret = imalloc_body(sopts, dopts, tsd, pc);
 	} else {
 		sopts->slow = true;
-		ret = imalloc_body(sopts, dopts, tsd);
+		ret = imalloc_body(sopts, dopts, tsd, pc);
 	}
 	if (ret == 0)
 		*dopts->result = BOUND_PTR(*dopts->result,
@@ -2072,7 +2075,7 @@ je_malloc(size_t size) {
 	dopts.num_items = 1;
 	dopts.item_size = size;
 
-	imalloc(&sopts, &dopts);
+	imalloc(&sopts, &dopts, __builtin_return_address(0));
 
 	LOG("core.malloc.exit", "result: %p", ret);
 
@@ -2104,7 +2107,7 @@ je_posix_memalign(void **memptr, size_t alignment, size_t size) {
 	dopts.item_size = size;
 	dopts.alignment = alignment;
 
-	ret = imalloc(&sopts, &dopts);
+	ret = imalloc(&sopts, &dopts, __builtin_return_address(0));
 
 	LOG("core.posix_memalign.exit", "result: %d, alloc ptr: %p", ret,
 	    *memptr);
@@ -2141,7 +2144,7 @@ je_aligned_alloc(size_t alignment, size_t size) {
 	dopts.item_size = size;
 	dopts.alignment = alignment;
 
-	imalloc(&sopts, &dopts);
+	imalloc(&sopts, &dopts, __builtin_return_address(0));
 
 	LOG("core.aligned_alloc.exit", "result: %p", ret);
 
@@ -2172,7 +2175,7 @@ je_calloc(size_t num, size_t size) {
 	dopts.item_size = size;
 	dopts.zero = true;
 
-	imalloc(&sopts, &dopts);
+	imalloc(&sopts, &dopts, __builtin_return_address(0));
 
 	LOG("core.calloc.exit", "result: %p", ret);
 
@@ -2334,7 +2337,7 @@ je_realloc(void *ptr, size_t size) {
 	if (unlikely(size == 0)) {
 		if (ptr != NULL) {
 			/* realloc(ptr, 0) is equivalent to free(ptr). */
-			UTRACE(ptr, 0, 0);
+			UTRACE(ptr, 0, 0, __builtin_return_address(0));
 			tcache_t *tcache;
 			tsd_t *tsd = tsd_fetch();
 			if (tsd_reentrancy_level_get(tsd) == 0) {
@@ -2398,7 +2401,7 @@ je_realloc(void *ptr, size_t size) {
 		*tsd_thread_allocatedp_get(tsd) += usize;
 		*tsd_thread_deallocatedp_get(tsd) += old_usize;
 	}
-	UTRACE(ptr, size, ret);
+	UTRACE(ptr, size, ret, __builtin_return_address(0));
 	check_entry_exit_locking(tsdn);
 	LOG("core.realloc.exit", "result: %p", ret);
 	return (BOUND_PTR(ret, size));
@@ -2408,7 +2411,7 @@ JEMALLOC_EXPORT void JEMALLOC_NOTHROW
 je_free(void *ptr) {
 	LOG("core.free.entry", "ptr: %p", ptr);
 
-	UTRACE(ptr, 0, 0);
+	UTRACE(ptr, 0, 0, __builtin_return_address(0));
 	if (likely(ptr != NULL)) {
 		/*
 		 * We avoid setting up tsd fully (e.g. tcache, arena binding)
@@ -2476,7 +2479,7 @@ je_memalign(size_t alignment, size_t size) {
 	dopts.item_size = size;
 	dopts.alignment = alignment;
 
-	imalloc(&sopts, &dopts);
+	imalloc(&sopts, &dopts, __builtin_return_address(0));
 
 	LOG("core.memalign.exit", "result: %p", ret);
 	return ret;
@@ -2511,7 +2514,7 @@ je_valloc(size_t size) {
 	dopts.item_size = size;
 	dopts.alignment = PAGE;
 
-	imalloc(&sopts, &dopts);
+	imalloc(&sopts, &dopts, __builtin_return_address(0));
 
 	LOG("core.valloc.exit", "result: %p\n", ret);
 	return ret;
@@ -2621,7 +2624,7 @@ je_mallocx(size_t size, int flags) {
 			dopts.arena_ind = MALLOCX_ARENA_GET(flags);
 	}
 
-	imalloc(&sopts, &dopts);
+	imalloc(&sopts, &dopts, __builtin_return_address(0));
 
 	LOG("core.mallocx.exit", "result: %p", ret);
 	return ret;
@@ -2768,7 +2771,7 @@ je_rallocx(void *ptr, size_t size, int flags) {
 		*tsd_thread_allocatedp_get(tsd) += usize;
 		*tsd_thread_deallocatedp_get(tsd) += old_usize;
 	}
-	UTRACE(ptr, size, p);
+	UTRACE(ptr, size, p, __builtin_return_address(0));
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
 	LOG("core.rallocx.exit", "result: %p", p);
@@ -2778,7 +2781,7 @@ label_oom:
 		malloc_write("<jemalloc>: Error in rallocx(): out of memory\n");
 		abort();
 	}
-	UTRACE(ptr, size, 0);
+	UTRACE(ptr, size, 0, __builtin_return_address(0));
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
 	LOG("core.rallocx.exit", "result: %p", NULL);
@@ -2918,7 +2921,7 @@ je_xallocx(void *ptr, size_t size, size_t extra, int flags) {
 		*tsd_thread_deallocatedp_get(tsd) += old_usize;
 	}
 label_not_resized:
-	UTRACE(ptr, size, ptr);
+	UTRACE(ptr, size, ptr, __builtin_return_address(0));
 	check_entry_exit_locking(tsd_tsdn(tsd));
 
 	LOG("core.xallocx.exit", "result: %zu", usize);
@@ -2985,7 +2988,7 @@ je_dallocx(void *ptr, int flags) {
 		}
 	}
 
-	UTRACE(ptr, 0, 0);
+	UTRACE(ptr, 0, 0, __builtin_return_address(0));
 	if (likely(fast)) {
 		tsd_assert_fast(tsd);
 		ifree(tsd, ptr, tcache, false);
@@ -3047,7 +3050,7 @@ je_sdallocx(void *ptr, size_t size, int flags) {
 		}
 	}
 
-	UTRACE(ptr, 0, 0);
+	UTRACE(ptr, 0, 0, __builtin_return_address(0));
 	if (likely(fast)) {
 		tsd_assert_fast(tsd);
 		isfree(tsd, ptr, usize, tcache, false);
