@@ -3575,6 +3575,38 @@ pmap_emulate_referenced(pmap_t pmap, vm_offset_t va)
 	return (1);
 }
 
+#if 0
+/* XREF pmap_is_modified */
+boolean_t
+pmap_is_capdirty(vm_page_t m)
+{
+	boolean_t rv;
+
+	KASSERT((m->oflags & VPO_UNMANAGED) == 0,
+	    ("pmap_is_modified: page %p is not managed", m));
+
+	/*
+	 * If the page is not exclusive busied, then PGA_WRITEABLE cannot be
+	 * concurrently set while the object is locked.  Thus, if PGA_WRITEABLE
+	 * is clear, no PTEs can have PTE_D set.
+	 */
+	VM_OBJECT_ASSERT_WLOCKED(m->object);
+	if (!vm_page_xbusied(m) && (m->aflags & PGA_WRITEABLE) == 0)
+		return (FALSE);
+	rw_wlock(&pvh_global_lock);
+	rv = pmap_testbit(m, PTE_SC);
+
+	/*
+	 * PTE_SC is an inhibit bit, so it will be clear for capdirty pages and
+	 * set for clean ones.  (Unlike PTE_V, which is an enable bit.)
+	 */
+	rv = !rv;
+
+	rw_wunlock(&pvh_global_lock);
+	return (rv);
+}
+#endif
+
 /*
  *	Routine:	pmap_kextract
  *	Function:

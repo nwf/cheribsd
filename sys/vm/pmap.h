@@ -150,6 +150,9 @@ vm_page_t	 pmap_extract_and_hold(pmap_t pmap, vm_offset_t va,
 		    vm_prot_t prot);
 void		 pmap_growkernel(vm_offset_t);
 void		 pmap_init(void);
+#ifdef CPU_CHERI
+boolean_t	 pmap_is_capdirty(vm_page_t m);
+#endif
 boolean_t	 pmap_is_modified(vm_page_t m);
 boolean_t	 pmap_is_prefaultable(pmap_t pmap, vm_offset_t va);
 boolean_t	 pmap_is_referenced(vm_page_t m);
