@@ -59,6 +59,7 @@ SUBDIR.${MK_CHERI}+=	helloworld
 SUBDIR.${MK_CHERI}+=	helloworld_cxx
 .endif
 SUBDIR.${MK_CHERI}+=	helloworld_static
+SUBDIR.${MK_CHERI}+=	cheri_bench_malloc
 
 # Consumers of libhelloworld
 SUBDIR.${MK_LIBCHERI}+=	cheri_helloworld
